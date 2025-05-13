@@ -214,6 +214,80 @@ class QPSKModulator(AbstractModulator):
         return BitStream(bit_stream.frequency, output_bits)
 
 
+class RotatedEightPSKModulator(AbstractModulator):
+    def __init__(self, low_pass_filter_frequency: int = 100):
+        """
+        :param low_pass_filter_frequency: frequency of the low pass filter used after
+            matched filter, defaults to 100
+        """
+        super().__init__()
+        self.name = "8PSK"
+        self.lpf_frequency = low_pass_filter_frequency
+
+    def modulate(self, bit_stream, carrier, time_vector):
+        bit_signal = bit_stream.encode_nrz().to_signal(time_vector, 3)
+        cos_carrier = carrier.cos(time_vector)
+        sin_carrier = carrier.sin(time_vector)
+
+        I_signal = (-0.5 * bit_signal[1]) * (
+            (bit_signal[2] + 1) * np.sin(np.pi / 8) - (bit_signal[2] - 1) * np.cos(np.pi / 8)
+        )
+        Q_signal = (-0.5 * bit_signal[0]) * (
+            (bit_signal[2] + 1) * np.cos(np.pi / 8) - (bit_signal[2] - 1) * np.sin(np.pi / 8)
+        )
+
+        modulated_signal = I_signal * cos_carrier + Q_signal * sin_carrier
+        return modulated_signal
+
+    def demodulate(self, signal, carrier, time_vector):
+        cos_carrier = carrier.cos(time_vector)
+        sin_carrier = carrier.sin(time_vector)
+
+        samples = round(signal.size / self.lpf_frequency)
+        box = 2 * np.ones(samples) / samples
+
+        demodulated_signal_1 = np.convolve(signal * cos_carrier, box, "same")
+        demodulated_signal_2 = np.convolve(signal * sin_carrier, box, "same")
+
+        return [demodulated_signal_1, demodulated_signal_2]
+
+    def bit_identification(self, demodulated_signals, bit_clock, time_vector):
+        bit_index = time_vector * bit_clock / 3
+        bit_length = round(time_vector.size / bit_index[-1])
+
+        bits = [0] * 3 * m.floor(bit_index[-1])
+
+        for i in range(m.floor(bit_index[-1])):
+            value_sum_1 = (
+                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
+            )
+            value_sum_2 = (
+                np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length]) / bit_length
+            )
+
+            if value_sum_2 > 0:
+                bits[3 * i] = 0
+            else:
+                bits[3 * i] = 1
+
+            if value_sum_1 > 0:
+                bits[3 * i + 1] = 0
+            else:
+                bits[3 * i + 1] = 1
+
+            if abs(value_sum_1) - abs(value_sum_2) < 0:
+                bits[3 * i + 2] = 1
+            else:
+                bits[3 * i + 2] = 0
+
+        return BitStream(bit_clock, bits)
+
+    def theoretical_BER(self, EbN0s):
+        return 0.5 * Q_function(np.sqrt(2 * (10 ** (np.array(EbN0s) / 10)) * np.sin(np.pi / 8)))
+
+    def fast_modulation_demodulation(self, bit_stream, snr): ...
+
+
 class SixteenQAMModulator(AbstractModulator):
     def __init__(self, low_pass_filter_frequency: int = 100, threshold: float = 2):
         """

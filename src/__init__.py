@@ -4,6 +4,7 @@ from .modulators import (
     SixteenQAMModulator,
     BFSKModulator,
     ThirtytwoQAMModulator,
+    RotatedEightPSKModulator,
 )
 from .simulation import SimulationParameters, ModulationSimulation, BERSimulation
 from .signals import BitStream, Carrier
