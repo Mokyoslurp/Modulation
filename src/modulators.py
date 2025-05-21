@@ -90,12 +90,11 @@ class AbstractModulator(ABC):
         symbol_index = time_vector * bit_clock / self.bits_per_symbol
 
         n_symbols = m.floor(symbol_index[-1])
-        n_bits = self.bits_per_symbol * n_symbols
 
         bit_length = round(time_vector.size / symbol_index[-1])
 
-        average_1 = [0] * n_bits
-        average_2 = [0] * n_bits
+        average_1 = [0] * n_symbols
+        average_2 = [0] * n_symbols
 
         for i in range(n_symbols):
             average_1[i] = (
