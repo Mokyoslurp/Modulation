@@ -12,6 +12,7 @@ class AbstractModulator(ABC):
 
     def __init__(self):
         self.name: str = None
+        self.bits_per_symbol: int = None
         # Low pass filter frequency
         self.lpf_frequency: float = None
 
@@ -79,6 +80,29 @@ class AbstractModulator(ABC):
 
         return [demodulated_signal_1, demodulated_signal_2]
 
+    def get_demodulated_signals_average(
+        self, demodulated_signals: list[np.ndarray], bit_clock: float, time_vector: np.ndarray
+    ):
+        symbol_index = time_vector * bit_clock / self.bits_per_symbol
+
+        n_symbols = m.floor(symbol_index[-1])
+        n_bits = self.bits_per_symbol * n_symbols
+
+        bit_length = round(time_vector.size / symbol_index[-1])
+
+        average_1 = [0] * n_bits
+        average_2 = [0] * n_bits
+
+        for i in range(n_symbols):
+            average_1[i] = (
+                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
+            )
+            average_2[i] = (
+                np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length]) / bit_length
+            )
+
+        return np.array(average_1), np.array(average_2)
+
 
 class BPSKModulator(AbstractModulator):
     def __init__(self, low_pass_filter_frequency: int = 100):
@@ -88,6 +112,7 @@ class BPSKModulator(AbstractModulator):
         """
         super().__init__()
         self.name = "BSPK"
+        self.bits_per_symbol = 1
         self.lpf_frequency = low_pass_filter_frequency
 
     def modulate(self, bit_stream, carrier, time_vector):
@@ -105,18 +130,10 @@ class BPSKModulator(AbstractModulator):
         return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
-        bit_index = time_vector * bit_clock
-        bit_length = round(time_vector.size / bit_index[-1])
-        bits = [0] * m.floor(bit_index[-1])
+        averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
 
-        for i in range(m.floor(bit_index[-1])):
-            value_sum = (
-                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
-            if value_sum > 0:
-                bits[i] = 1
-            else:
-                bits[i] = 0
+        bits = np.zeros((averages[0].shape))
+        bits[averages[0] > 0] = 1
 
         return BitStream(bit_clock, bits)
 
@@ -145,6 +162,7 @@ class QPSKModulator(AbstractModulator):
         """
         super().__init__()
         self.name = "QPSK"
+        self.bits_per_symbol = 2
         self.lpf_frequency = low_pass_filter_frequency
 
     def modulate(self, bit_stream, carrier, time_vector):
@@ -163,33 +181,15 @@ class QPSKModulator(AbstractModulator):
         return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
-        bit_index = time_vector * bit_clock / 2
-        bit_length = round(time_vector.size / bit_index[-1])
+        averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
 
-        bits = [0] * 2 * m.floor(bit_index[-1])
+        bits_1 = np.zeros((averages[0].shape))
+        bits_2 = np.zeros((averages[0].shape))
 
-        for i in range(m.floor(bit_index[-1])):
-            value_sum_1 = (
-                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
-            value_sum_2 = (
-                np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
+        bits_1[averages[0] > 0] = 1
+        bits_2[averages[1] > 0] = 1
 
-            if value_sum_1 > 0:
-                if value_sum_2 > 0:
-                    bits[2 * i] = 1
-                    bits[2 * i + 1] = 1
-                else:
-                    bits[2 * i] = 1
-                    bits[2 * i + 1] = 0
-            else:
-                if value_sum_2 > 0:
-                    bits[2 * i] = 0
-                    bits[2 * i + 1] = 1
-                else:
-                    bits[2 * i] = 0
-                    bits[2 * i + 1] = 0
+        bits = np.ravel([bits_1, bits_2], order="F")
 
         return BitStream(bit_clock, bits)
 
@@ -225,6 +225,7 @@ class RotatedEightPSKModulator(AbstractModulator):
         """
         super().__init__()
         self.name = "8PSK"
+        self.bits_per_symbol = 3
         self.lpf_frequency = low_pass_filter_frequency
 
     def modulate(self, bit_stream, carrier, time_vector):
@@ -249,33 +250,17 @@ class RotatedEightPSKModulator(AbstractModulator):
         return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
-        bit_index = time_vector * bit_clock / 3
-        bit_length = round(time_vector.size / bit_index[-1])
+        averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
 
-        bits = [0] * 3 * m.floor(bit_index[-1])
+        bits_1 = np.zeros((averages[0].shape))
+        bits_2 = np.zeros((averages[0].shape))
+        bits_3 = np.zeros((averages[0].shape))
 
-        for i in range(m.floor(bit_index[-1])):
-            value_sum_1 = (
-                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
-            value_sum_2 = (
-                np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
+        bits_1[averages[1] < 0] = 1
+        bits_2[averages[0] < 0] = 1
+        bits_3[np.abs(averages[0]) - np.abs(averages[1]) < 0] = 1
 
-            if value_sum_2 > 0:
-                bits[3 * i] = 0
-            else:
-                bits[3 * i] = 1
-
-            if value_sum_1 > 0:
-                bits[3 * i + 1] = 0
-            else:
-                bits[3 * i + 1] = 1
-
-            if abs(value_sum_1) - abs(value_sum_2) < 0:
-                bits[3 * i + 2] = 1
-            else:
-                bits[3 * i + 2] = 0
+        bits = np.ravel([bits_1, bits_2, bits_3], order="F")
 
         return BitStream(bit_clock, bits)
 
@@ -294,6 +279,7 @@ class SixteenQAMModulator(AbstractModulator):
         """
         super().__init__()
         self.name = "16QAM"
+        self.bits_per_symbol = 4
         self.lpf_frequency = low_pass_filter_frequency
         self.threshold = threshold
 
@@ -316,38 +302,19 @@ class SixteenQAMModulator(AbstractModulator):
         return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
-        bit_index = time_vector * bit_clock / 4
-        bit_length = round(time_vector.size / bit_index[-1])
+        averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
 
-        bits = [0] * 4 * m.floor(bit_index[-1])
+        bits_1 = np.zeros((averages[0].shape))
+        bits_2 = np.zeros((averages[0].shape))
+        bits_3 = np.zeros((averages[0].shape))
+        bits_4 = np.zeros((averages[0].shape))
 
-        for i in range(m.floor(bit_index[-1])):
-            value_sum_1 = (
-                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
-            value_sum_2 = (
-                np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length]) / bit_length
-            )
+        bits_1[averages[0] > 0] = 1
+        bits_2[np.abs(averages[0]) < self.threshold] = 1
+        bits_3[averages[1] < 0] = 1
+        bits_4[np.abs(averages[1]) < self.threshold] = 1
 
-            if value_sum_1 > 0:
-                bits[4 * i] = 1
-            else:
-                bits[4 * i] = 0
-
-            if abs(value_sum_1) > self.threshold:
-                bits[4 * i + 1] = 0
-            else:
-                bits[4 * i + 1] = 1
-
-            if value_sum_2 > 0:
-                bits[4 * i + 2] = 0
-            else:
-                bits[4 * i + 2] = 1
-
-            if abs(value_sum_2) > self.threshold:
-                bits[4 * i + 3] = 0
-            else:
-                bits[4 * i + 3] = 1
+        bits = np.ravel([bits_1, bits_2, bits_3, bits_4], order="F")
 
         return BitStream(bit_clock, bits)
 
@@ -400,6 +367,7 @@ class ThirtytwoQAMModulator(AbstractModulator):
         """
         super().__init__()
         self.name = "32QAM"
+        self.bits_per_symbol = 5
         self.lpf_frequency = low_pass_filter_frequency
         self.threshold_1 = threshold_1
         self.threshold_2 = threshold_2
@@ -433,45 +401,45 @@ class ThirtytwoQAMModulator(AbstractModulator):
         return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
-        bit_index = time_vector * bit_clock / 5
-        bit_length = round(time_vector.size / bit_index[-1])
+        averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
 
-        bits = [0] * 5 * m.floor(bit_index[-1])
+        bits_1 = np.zeros((averages[0].shape))
+        bits_2 = np.zeros((averages[0].shape))
+        bits_3 = np.zeros((averages[0].shape))
+        bits_4 = np.zeros((averages[0].shape))
+        bits_5 = np.zeros((averages[0].shape))
 
-        for i in range(m.floor(bit_index[-1])):
-            value_sum_1 = (
-                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length]) / bit_length
+        bits_1[
+            np.any(
+                [np.abs(averages[0]) > self.threshold_2, np.abs(averages[1]) > self.threshold_2],
+                axis=0,
             )
-            value_sum_2 = (
-                np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length]) / bit_length
+        ] = 1
+        bits_2[averages[0] > 0] = 1
+        bits_3[averages[1] > 0] = 1
+        bits_4[
+            np.all(
+                [
+                    np.abs(averages[1]) > self.threshold_1,
+                    np.any(
+                        [
+                            np.abs(averages[1]) < self.threshold_2,
+                            np.abs(averages[0]) < self.threshold_1,
+                        ],
+                        axis=0,
+                    ),
+                ],
+                axis=0,
             )
+        ] = 1
+        bits_5[
+            np.all(
+                [np.abs(averages[0]) > self.threshold_1, np.abs(averages[1]) < self.threshold_2],
+                axis=0,
+            )
+        ] = 1
 
-            if abs(value_sum_1) > self.threshold_2 or abs(value_sum_2) > self.threshold_2:
-                bits[5 * i] = 1
-            else:
-                bits[5 * i] = 0
-
-            if value_sum_1 > 0:
-                bits[5 * i + 1] = 1
-            else:
-                bits[5 * i + 1] = 0
-
-            if value_sum_2 > 0:
-                bits[5 * i + 2] = 1
-            else:
-                bits[5 * i + 2] = 0
-
-            if abs(value_sum_2) > self.threshold_1 and (
-                abs(value_sum_2) < self.threshold_2 or abs(value_sum_1) < self.threshold_1
-            ):
-                bits[5 * i + 3] = 1
-            else:
-                bits[5 * i + 3] = 0
-
-            if abs(value_sum_1) > self.threshold_1 and abs(value_sum_2) < self.threshold_2:
-                bits[5 * i + 4] = 1
-            else:
-                bits[5 * i + 4] = 0
+        bits = np.ravel([bits_1, bits_2, bits_3, bits_4, bits_5], order="F")
 
         return BitStream(bit_clock, bits)
 
@@ -497,6 +465,7 @@ class BFSKModulator(AbstractModulator):
         """
         super().__init__()
         self.name = "BFSK"
+        self.bits_per_symbol = 1
         self.frequency_shift = frequency_shift
         self.lpf_frequency = low_pass_filter_frequency
 
@@ -516,20 +485,10 @@ class BFSKModulator(AbstractModulator):
         return self._coherent_demodulation(signal, carrier_1, carrier_2)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
-        bit_index = time_vector * bit_clock
-        bit_length = round(time_vector.size / bit_index[-1])
-        bits = [0] * m.floor(bit_index[-1])
+        averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
 
-        for i in range(m.floor(bit_index[-1])):
-            value_sum = (
-                np.sum(demodulated_signals[0][i * bit_length : (i + 1) * bit_length])
-                - np.sum(demodulated_signals[1][i * bit_length : (i + 1) * bit_length])
-            ) / (bit_length)
-
-            if value_sum > 0:
-                bits[i] = 1
-            else:
-                bits[i] = 0
+        bits = np.zeros((averages[0].shape))
+        bits[averages[0] - averages[1] > 0] = 1
 
         return BitStream(bit_clock, bits)
 
