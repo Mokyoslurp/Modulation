@@ -70,9 +70,13 @@ class AbstractModulator(ABC):
         """
 
     def _coherent_demodulation(
-        self, signal: np.ndarray, carrier_1: np.ndarray, carrier_2: np.ndarray
+        self,
+        signal: np.ndarray,
+        carrier_1: np.ndarray,
+        carrier_2: np.ndarray,
+        time_vector: np.ndarray,
     ):
-        samples = round(signal.size / self.lpf_frequency)
+        samples = round((signal.size / time_vector[-1]) / self.lpf_frequency)
         box = 2 * np.ones(samples) / samples
 
         demodulated_signal_1 = np.convolve(signal * carrier_1, box, "same")
@@ -127,7 +131,7 @@ class BPSKModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier, time_vector)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
@@ -178,7 +182,7 @@ class QPSKModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier, time_vector)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
@@ -247,7 +251,7 @@ class RotatedEightPSKModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier, time_vector)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
@@ -299,7 +303,7 @@ class SixteenQAMModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier, time_vector)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
@@ -398,7 +402,7 @@ class ThirtytwoQAMModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier, time_vector)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
@@ -482,7 +486,7 @@ class BFSKModulator(AbstractModulator):
         carrier_1 = carrier.frequency_shift(time_vector, shift=self.frequency_shift)
         carrier_2 = carrier.frequency_shift(time_vector, shift=-self.frequency_shift)
 
-        return self._coherent_demodulation(signal, carrier_1, carrier_2)
+        return self._coherent_demodulation(signal, carrier_1, carrier_2, time_vector)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         averages = self.get_demodulated_signals_average(demodulated_signals, bit_clock, time_vector)
