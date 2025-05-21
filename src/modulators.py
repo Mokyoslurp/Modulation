@@ -174,7 +174,7 @@ class QPSKModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        modulated_signal = bit_signal[0] * cos_carrier + bit_signal[1] * sin_carrier
+        modulated_signal = (bit_signal[0] * cos_carrier + bit_signal[1] * sin_carrier) / np.sqrt(2)
 
         return modulated_signal
 
