@@ -1,4 +1,5 @@
 import numpy as np
+import math as m
 import matplotlib.pyplot as plt
 
 from .signals import BitStream, Carrier
@@ -51,7 +52,7 @@ class ModulationSimulation:
         self.snr = snr
 
         self.modulated_signal: np.ndarray = None
-        self.demodulated_signals: np.ndarray = None
+        self.demodulated_signals: list[np.ndarray] = None
         self.output_bit_stream: BitStream = None
 
     def clean(self):
@@ -186,12 +187,40 @@ class ModulationSimulation:
             ax.grid()
             plt.legend()
 
+    def plot_eye_pattern(self):
+        if self.demodulated_signals is not None:
+            bits_index = self.time_vector * self.input_bit_stream.frequency
+            n_bits = m.floor(bits_index[-1])
+            bit_length = round(self.time_vector.size / n_bits)
+
+            reshaped_bits_index = np.tile(bits_index[:bit_length], n_bits)
+            reshaped_signal_1 = self.demodulated_signals[0][: n_bits * bit_length]
+            reshaped_signal_2 = self.demodulated_signals[1][: n_bits * bit_length]
+
+            plt.figure(4)
+
+            plt.scatter(
+                reshaped_bits_index,
+                reshaped_signal_1,
+                label="In-phase demodulation",
+            )
+            plt.scatter(
+                reshaped_bits_index,
+                reshaped_signal_2,
+                label="Quadrature demodulation",
+            )
+
+            plt.xlabel("Time (s)")
+            plt.ylabel("Amplitude")
+            plt.legend()
+
     def plot_all(self):
         """Plots and shows all implemented plots"""
         self.plot_bit_stream()
         self.plot_modulation()
         self.plot_demodulation()
         self.plot_constellation()
+        self.plot_eye_pattern()
 
         plt.show()
 
