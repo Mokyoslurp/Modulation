@@ -162,11 +162,36 @@ class ModulationSimulation:
             plt.ylabel("Amplitude")
             plt.legend()
 
+    def plot_constellation(self):
+        if self.demodulated_signals is not None:
+            averaged_demodulated_signals = self.modulator.get_demodulated_signals_average(
+                self.demodulated_signals, self.input_bit_stream.frequency, self.time_vector
+            )
+
+            plt.figure(3)
+            ax = plt.gca()
+
+            circle = plt.Circle((0, 0), 1, color="k", fill=False)
+
+            ax.add_patch(circle)
+            ax.scatter(
+                averaged_demodulated_signals[0],
+                averaged_demodulated_signals[1],
+                label=self.modulator.name,
+            )
+
+            plt.xlabel("In-phase carrier")
+            plt.ylabel("Quadrature carrier")
+            ax.set_aspect("equal", adjustable="box")
+            ax.grid()
+            plt.legend()
+
     def plot_all(self):
         """Plots and shows all implemented plots"""
         self.plot_bit_stream()
         self.plot_modulation()
         self.plot_demodulation()
+        self.plot_constellation()
 
         plt.show()
 
