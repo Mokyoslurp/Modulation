@@ -12,6 +12,8 @@ class AbstractModulator(ABC):
 
     def __init__(self):
         self.name: str = None
+        # Low pass filter frequency
+        self.lpf_frequency: float = None
 
     @abstractmethod
     def modulate(
@@ -66,6 +68,17 @@ class AbstractModulator(ABC):
         :return: output bit stream after demodulation
         """
 
+    def _coherent_demodulation(
+        self, signal: np.ndarray, carrier_1: np.ndarray, carrier_2: np.ndarray
+    ):
+        samples = round(signal.size / self.lpf_frequency)
+        box = 2 * np.ones(samples) / samples
+
+        demodulated_signal_1 = np.convolve(signal * carrier_1, box, "same")
+        demodulated_signal_2 = np.convolve(signal * carrier_2, box, "same")
+
+        return [demodulated_signal_1, demodulated_signal_2]
+
 
 class BPSKModulator(AbstractModulator):
     def __init__(self, low_pass_filter_frequency: int = 100):
@@ -87,13 +100,9 @@ class BPSKModulator(AbstractModulator):
 
     def demodulate(self, signal, carrier, time_vector):
         cos_carrier = carrier.cos(time_vector)
+        sin_carrier = carrier.sin(time_vector)
 
-        samples = round(signal.size / self.lpf_frequency)
-        box = 2 * np.ones(samples) / samples
-
-        demodulated_signal = np.convolve(signal * cos_carrier, box, "same")
-
-        return [demodulated_signal]
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         bit_index = time_vector * bit_clock
@@ -151,13 +160,7 @@ class QPSKModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        samples = round(signal.size / self.lpf_frequency)
-        box = 2 * np.ones(samples) / samples
-
-        demodulated_signal_1 = np.convolve(signal * cos_carrier, box, "same")
-        demodulated_signal_2 = np.convolve(signal * sin_carrier, box, "same")
-
-        return [demodulated_signal_1, demodulated_signal_2]
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         bit_index = time_vector * bit_clock / 2
@@ -243,13 +246,7 @@ class RotatedEightPSKModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        samples = round(signal.size / self.lpf_frequency)
-        box = 2 * np.ones(samples) / samples
-
-        demodulated_signal_1 = np.convolve(signal * cos_carrier, box, "same")
-        demodulated_signal_2 = np.convolve(signal * sin_carrier, box, "same")
-
-        return [demodulated_signal_1, demodulated_signal_2]
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         bit_index = time_vector * bit_clock / 3
@@ -316,13 +313,7 @@ class SixteenQAMModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        samples = round(signal.size / self.lpf_frequency)
-        box = 2 * np.ones(samples) / samples
-
-        demodulated_signal_1 = np.convolve(signal * cos_carrier, box, "same")
-        demodulated_signal_2 = np.convolve(signal * sin_carrier, box, "same")
-
-        return [demodulated_signal_1, demodulated_signal_2]
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         bit_index = time_vector * bit_clock / 4
@@ -439,13 +430,7 @@ class ThirtytwoQAMModulator(AbstractModulator):
         cos_carrier = carrier.cos(time_vector)
         sin_carrier = carrier.sin(time_vector)
 
-        samples = round(signal.size / self.lpf_frequency)
-        box = 2 * np.ones(samples) / samples
-
-        demodulated_signal_1 = np.convolve(signal * cos_carrier, box, "same")
-        demodulated_signal_2 = np.convolve(signal * sin_carrier, box, "same")
-
-        return [demodulated_signal_1, demodulated_signal_2]
+        return self._coherent_demodulation(signal, cos_carrier, sin_carrier)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         bit_index = time_vector * bit_clock / 5
@@ -528,13 +513,7 @@ class BFSKModulator(AbstractModulator):
         carrier_1 = carrier.frequency_shift(time_vector, shift=self.frequency_shift)
         carrier_2 = carrier.frequency_shift(time_vector, shift=-self.frequency_shift)
 
-        samples = round(signal.size / self.lpf_frequency)
-        box = 2 * np.ones(samples) / samples
-
-        demodulated_signal_1 = np.convolve(signal * carrier_1, box, "same")
-        demodulated_signal_2 = np.convolve(signal * carrier_2, box, "same")
-
-        return [demodulated_signal_1, demodulated_signal_2]
+        return self._coherent_demodulation(signal, carrier_1, carrier_2)
 
     def bit_identification(self, demodulated_signals, bit_clock, time_vector):
         bit_index = time_vector * bit_clock
